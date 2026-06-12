@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: eventdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d:ro   # 최초 기동 시 스키마 자동 생성
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d eventdb"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # 이벤트 생성·적재·Parquet 아카이브 — DB가 healthy 해지면 1회 실행 후 종료
+  generator:
+    build: ./generator
+    environment:
+      PG_DSN: postgresql://app:app@postgres:5432/eventdb
+      GEN_DAYS: "7"                  # 백필할 과거 일수
+      GEN_USERS: "2000"              # 유저 풀 크기
+      GEN_COURSES: "60"              # 클래스 수
+      GEN_SESSIONS_PER_DAY: "3000"   # 하루 세션 수 (총 이벤트 ~5.5만 건)
+      GEN_SEED: "42"                 # 고정 시드 → 재현 가능한 데이터
+      PARQUET_DIR: /data/parquet
+    volumes:
+      - ./parquet_output:/data/parquet   # Parquet 아카이브 + 크기 비교 리포트가 호스트에 남는다
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 데이터 적재가 끝난 뒤 기동 → 처음 열 때부터 차트에 데이터가 차 있다
+  grafana:
+    image: grafana/grafana:11.6.1
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"        # 평가자가 로그인 없이 바로 조회
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/events.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      generator:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
