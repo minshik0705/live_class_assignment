@@ -165,28 +165,7 @@ PK도 의도적으로 걸지 않았습니다. append-only 로그에 point lookup
 
 이 파이프라인을 AWS에 올린다면, 로컬 구성 요소가 그대로 매핑됩니다.
 
-```mermaid
-flowchart LR
-    subgraph compute ["수집·생성"]
-        ECS["ECS Fargate<br/>이벤트 생성기/수집 API"]
-    end
-    subgraph hot ["핫 저장소 (최근 데이터)"]
-        RDS["RDS for PostgreSQL<br/>일 파티셔닝 + BRIN"]
-    end
-    subgraph cold ["콜드 저장소 (장기 보관)"]
-        S3["S3<br/>Parquet + zstd"]
-        ATHENA["Athena<br/>S3 Parquet 직접 쿼리"]
-    end
-    subgraph viz ["시각화"]
-        GF["Grafana<br/>(EC2 or Managed Grafana)"]
-    end
-
-    ECS -->|"INSERT"| RDS
-    RDS -->|"오래된 파티션<br/>배치 내보내기 (Lambda/ECS 스케줄)"| S3
-    S3 --> ATHENA
-    RDS -->|"최근 데이터 SQL"| GF
-    ATHENA -->|"과거 데이터 SQL"| GF
-```
+![AWS 아키텍처](images/AWS_architecture.png)
 
 ### 서비스 역할과 선택 이유
 
