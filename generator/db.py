@@ -15,6 +15,7 @@ def connect_with_retry(dsn: str, timeout_sec: int = 60):
             conn = psycopg2.connect(dsn)
             conn.autocommit = False
             return conn
+        #DB 부팅 또는 네트워크 준비 부족으로 에러가 발생할 경우
         except psycopg2.OperationalError:
             if time.monotonic() > deadline:
                 raise
@@ -24,6 +25,7 @@ def connect_with_retry(dsn: str, timeout_sec: int = 60):
 def events_already_loaded(conn) -> bool:
     """재실행(compose restart) 시 중복 적재 방지 가드."""
     with conn.cursor() as cur:
+        # events 테이블 데이터가 단 하나라도 있는지 조회
         cur.execute("SELECT EXISTS (SELECT 1 FROM events)")
         return cur.fetchone()[0]
 
@@ -56,6 +58,7 @@ def insert_courses(conn, courses: list[dict]) -> None:
         for c in courses
     ]
     with conn.cursor() as cur:
+        # 충돌 시 무시하고 넘어가라 (course_id는 PK라 중복될 수 없는데 만약 발생하면 무시)
         execute_values(
             cur,
             "INSERT INTO courses (course_id, title, category, price, discount_price, is_free) "

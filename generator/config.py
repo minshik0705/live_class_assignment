@@ -6,7 +6,7 @@ import os
 def _int(name: str, default: int) -> int:
     return int(os.getenv(name, str(default)))
 
-
+# PostgreSQL 접속을 위한 연결 문자열
 PG_DSN = os.getenv("PG_DSN", "postgresql://app:app@localhost:5432/eventdb")
 
 DAYS = _int("GEN_DAYS", 7)                          # 백필할 과거 일수

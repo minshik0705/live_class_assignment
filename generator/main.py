@@ -13,7 +13,7 @@ import db
 import export_parquet
 from simulate import KST, Simulator
 
-
+# DB에 적재한 데이터 정보 요약 출력
 def print_summary(conn) -> None:
     with conn.cursor() as cur:
         cur.execute("""
@@ -32,9 +32,11 @@ def print_summary(conn) -> None:
 
 
 def main() -> None:
+    # DB 연결, split('@)[-1]은 비번 노출을 방지
     print(f"DB 연결 대기: {config.PG_DSN.split('@')[-1]}", flush=True)
     conn = db.connect_with_retry(config.PG_DSN)
 
+    # 데이터 적재
     if db.events_already_loaded(conn):
         print("events 테이블에 데이터가 이미 있음 — 생성·적재 스킵 (재실행 가드)", flush=True)
     else:
@@ -42,7 +44,7 @@ def main() -> None:
         print(f"백필 시뮬레이션: [{now:%Y-%m-%d %H:%M} 기준 과거 {config.DAYS}일] "
               f"유저 {config.NUM_USERS:,} / 클래스 {config.NUM_COURSES} / "
               f"세션 {config.DAYS * config.SESSIONS_PER_DAY:,}", flush=True)
-
+        # 이벤트 생성
         sim = Simulator(
             now,
             days=config.DAYS,
@@ -62,7 +64,7 @@ def main() -> None:
         db.insert_events(conn, events)
         conn.commit()
         print_summary(conn)
-
+    
     export_parquet.run(conn, config.PARQUET_DIR)
     conn.close()
     print("\n파이프라인 완료. Grafana: http://localhost:3000", flush=True)
